@@ -36,7 +36,4 @@ public class Util {
         }
         return sessionFactory;
     }
-    public static SessionFactory getSessionFactory() {
-        return sessionFactory;
-    }
 }

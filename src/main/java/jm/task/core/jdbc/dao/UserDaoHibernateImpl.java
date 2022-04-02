@@ -6,31 +6,29 @@ import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class UserDaoHibernateImpl implements UserDao {
-    private  SessionFactory sessionFactory = Util.getConnection();
-    private static final String SQL_CREATE = "CREATE TABLE IF NOT EXISTS users " +
-            "(id BIGINT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(255), last_name VARCHAR(255), age INT)";
+    private SessionFactory sessionFactory = Util.getConnection();
+    private String SQL_CREATE = "CREATE TABLE IF NOT EXISTS users " +
+            "(id BIGINT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(255), lastName VARCHAR(255), age INT)";
 
     public UserDaoHibernateImpl() {}
 
     @Override
     public void createUsersTable() {
         Session session = sessionFactory.openSession();
-        //Transaction transaction = session.benginTransaction();
+        Transaction transaction = session.beginTransaction();
         try {
-            session.createNativeQuery(SQL_CREATE);
-            //transaction.commit();
-            System.out.println("Таблица создана");
+            session.createNativeQuery(SQL_CREATE).executeUpdate();
+            transaction.commit();
+            System.out.println("table create");
         } catch (HibernateException e) {
-            e.printStackTrace();
-           // if (transaction != null) {
-            //    transaction.rollback();
-           // }
+            System.err.println("При создании таблицы пользователей произошло исключение\n" + e);
+            if (transaction != null) {
+                transaction.rollback();
+            }
         } finally {
             session.close();
         }
@@ -43,9 +41,9 @@ public class UserDaoHibernateImpl implements UserDao {
         try {
             session.createNativeQuery("DROP TABLE IF EXISTS users").executeUpdate();
             transaction.commit();
-            System.out.println("Таблица удалена");
+            System.out.println("drop table");
         } catch (HibernateException e) {
-            e.printStackTrace();
+            System.err.println("При удалении таблицы пользователей произошло исключение\n" + e);
             if (transaction != null) {
                 transaction.rollback();
             }
@@ -59,11 +57,14 @@ public class UserDaoHibernateImpl implements UserDao {
         Session session = sessionFactory.openSession();
         Transaction transaction = session.beginTransaction();
         try {
-            session.save(new User(name, lastName, age));
+            session.createNativeQuery("INSERT INTO users (name , lastName , age) VALUES (?,?,?)")
+                    .setParameter(1, name)
+                    .setParameter(2, lastName)
+                    .setParameter(3, age)
+                    .executeUpdate();
             transaction.commit();
-            System.out.println("User с именем – " + name + " добавлен в базу данных");
         } catch (HibernateException e) {
-            e.printStackTrace();
+            System.err.println("Во время сохранения пользователя произошло исключение\n" + e);
             if (transaction != null) {
                 transaction.rollback();
             }
@@ -75,17 +76,17 @@ public class UserDaoHibernateImpl implements UserDao {
     @Override
     public void removeUserById(long id) {
         Session session = sessionFactory.openSession();
-       // Transaction transaction = session.beginTransaction();
+        Transaction transaction = session.beginTransaction();
         try {
-            session.createNativeQuery("DELETE FROM users WHERE id = id");
-            //session.delete(session.get(User.class, id));
-           // transaction.commit();
-            System.out.println("User удален");
+            session.createNativeQuery("DELETE FROM users WHERE id = " + id, User.class).executeUpdate();
+            session.flush();
+            transaction.commit();
+            System.out.println("user delete");
         } catch (HibernateException e) {
-            e.printStackTrace();
-           // if (transaction != null) {
-            //    transaction.rollback();
-          //  }
+            System.err.println("При удаление пользователя по id произошло исключение\n" + e);
+            if (transaction != null) {
+                transaction.rollback();
+            }
         } finally {
             session.close();
         }
@@ -93,20 +94,22 @@ public class UserDaoHibernateImpl implements UserDao {
 
     @Override
     public List<User> getAllUsers() {
-        List<User> users = new ArrayList<>();
         Session session = sessionFactory.openSession();
         Transaction transaction = session.beginTransaction();
-        users = session.createNativeQuery("SELECT * FROM users",User.class).getResultList();
-//            while (resultSet.next()) {
-//                User user = new User(resultSet.getString("name"),
-//                        resultSet.getString("last_name"), resultSet.getByte("age"));
-//                user.setId(resultSet.getLong("id"));
-//                users.add(user);
-        transaction.commit();
-
+        List<User> users = new ArrayList<>();
+        try {
+            users = session.createNativeQuery("SELECT * FROM users", User.class).getResultList();
+            transaction.commit();
+        } catch (HibernateException e) {
+            System.err.println("При попытке достать всех пользователей из базы данных произошло исключение\n" + e);
+            if (transaction != null) {
+                transaction.rollback();
+            }
+        } finally {
+            session.close();
+        }
         return users;
     }
-
 
     @Override
     public void cleanUsersTable() {
@@ -115,15 +118,14 @@ public class UserDaoHibernateImpl implements UserDao {
         try {
             session.createNativeQuery("TRUNCATE TABLE users;").executeUpdate();
             transaction.commit();
-            System.out.println("Таблица очищена");
+            System.out.println("table clear");
         } catch (HibernateException e) {
-            e.printStackTrace();
+            System.err.println("При тестировании очистки таблицы пользователей произошло исключение\n" + e);
             if (transaction != null) {
                 transaction.rollback();
             }
         } finally {
             session.close();
         }
-
     }
 }
